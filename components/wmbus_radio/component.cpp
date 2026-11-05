@@ -90,7 +90,9 @@ void Radio::receive_frame() {
 
   auto packet = std::make_unique<Packet>();
 
-  if (!this->radio->read_in_task(packet->rx_data_ptr(), packet->rx_capacity(), 0)) {
+  auto *header = packet->rx_data_ptr();
+  const size_t header_length = packet->rx_capacity();
+  if (!this->radio->read_in_task(header, header_length, 0)) {
     this->radio->restart_rx();
     return;
   }
@@ -100,7 +102,9 @@ void Radio::receive_frame() {
     return;
   }
 
-  if (!this->radio->read_in_task(packet->rx_data_ptr(), packet->rx_capacity(), 3)) {
+  auto *payload = packet->rx_data_ptr();
+  const size_t payload_length = packet->rx_capacity();
+  if (!this->radio->read_in_task(payload, payload_length, header_length)) {
     this->radio->restart_rx();
     return;
   }

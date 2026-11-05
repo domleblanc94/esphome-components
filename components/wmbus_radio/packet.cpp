@@ -84,10 +84,10 @@ size_t Packet::expected_size() {
 }
 
 size_t Packet::rx_capacity() {
-  // TODO: Remove side effects?
-  auto cap = this->data_.capacity() - this->data_.size();
-  this->data_.resize(this->data_.capacity());
-  return cap;
+  const size_t target = this->expected_size_ != 0 ? this->expected_size_ : WMBUS_PREAMBLE_SIZE;
+  const size_t remaining = target - this->data_.size();
+  this->data_.resize(target);
+  return remaining;
 }
 
 uint8_t *Packet::rx_data_ptr() {

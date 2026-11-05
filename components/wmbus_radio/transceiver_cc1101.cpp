@@ -40,8 +40,8 @@ void CC1101::setup() {
   this->write_register(CC1101_IOCFG0, CC1101_GDO_RXFIFO_THR | 0x40);
 
   ESP_LOGVV(TAG, "configuring FIFO threshold");
-  // FIFO threshold: 7 = RX FIFO >= 32 bytes, TX FIFO <= 31 bytes
-  this->write_register(CC1101_FIFOTHR, 0x07);
+  // Wake after four bytes so the header can be read with one byte left.
+  this->write_register(CC1101_FIFOTHR, 0x00);
 
   ESP_LOGVV(TAG, "configuring sync word");
   // Sync word for wM-Bus: 0x543D (with Manchester encoding: preamble 0x54)
@@ -53,7 +53,7 @@ void CC1101::setup() {
   this->write_register(CC1101_PKTLEN, 0xFF);
   // Packet control 1: No address check, no append status, no CRC autoflush
   this->write_register(CC1101_PKTCTRL1, 0x00);
-  // Packet control 0: Variable packet length, no whitening, no CRC
+  // Start in infinite-length mode until the frame length is known.
   this->write_register(CC1101_PKTCTRL0, 0x02);
 
   // No device address filtering
@@ -248,7 +248,9 @@ void CC1101::restart_rx() {
 
   ulTaskNotifyTake(pdTRUE, 0);
 
-  // Enter RX mode
+  // The next frame length is unknown until its header is read.
+  this->write_register(CC1101_PKTLEN, 0xFF);
+  this->write_register(CC1101_PKTCTRL0, 0x02);
   this->strobe(CC1101_SRX);
   delay(1);
 }
@@ -270,6 +272,12 @@ int8_t CC1101::get_rssi() {
 const char *CC1101::get_name() { return TAG; }
 
 bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
+  // PKTLEN counts the entire on-air frame, including the header already read.
+  if (offset != 0 && length + offset <= UINT8_MAX) {
+    this->write_register(CC1101_PKTLEN, static_cast<uint8_t>(length + offset));
+    this->write_register(CC1101_PKTCTRL0, 0x00);
+  }
+
   size_t total = 0;
   uint32_t last_progress = millis();
 
