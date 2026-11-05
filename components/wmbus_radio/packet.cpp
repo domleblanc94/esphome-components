@@ -61,6 +61,8 @@ size_t Packet::expected_size() {
     // Format B
     //   L-field = length with CRC fields and without L (1 byte)
     auto l_field = this->l_field();
+    if (l_field == 0)
+      return 0;
 
     // The 2 first blocks contains 25 bytes when excluding CRC and the L-field
     // The other blocks contains 16 bytes when excluding the CRC-fields

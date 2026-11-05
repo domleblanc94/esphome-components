@@ -280,15 +280,20 @@ bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
 
   size_t total = 0;
   uint32_t last_progress = millis();
+  uint8_t fifo_status = 0;
+  const char *phase = offset == 0 ? "header" : "payload";
 
   while (total < length) {
     // TI SWRZ020E: trust the asynchronously updated RXBYTES only after
     // two consecutive SPI reads agree.
     const uint8_t first = this->read_status_register(CC1101_RXBYTES);
     const uint8_t second = this->read_status_register(CC1101_RXBYTES);
+    fifo_status = second;
     if (first == second) {
       if (second & 0x80) {
-        ESP_LOGW(TAG, "RX FIFO overflow");
+        ESP_LOGW(TAG, "RX FIFO overflow: phase=%s copied=%zu expected=%zu RXBYTES=0x%02X MARCSTATE=0x%02X",
+                 phase, total + offset, length + offset, second,
+                 this->read_status_register(CC1101_MARCSTATE) & 0x1F);
         return false;
       }
 
@@ -310,8 +315,9 @@ bool CC1101::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
     }
 
     if (millis() - last_progress > 500) {
-      ESP_LOGW(TAG, "RX timeout after %lu bytes (need %lu)", (unsigned long)(total + offset),
-               (unsigned long)(length + offset));
+      ESP_LOGW(TAG, "RX timeout: phase=%s copied=%zu expected=%zu last_RXBYTES=0x%02X MARCSTATE=0x%02X",
+               phase, total + offset, length + offset, fifo_status,
+               this->read_status_register(CC1101_MARCSTATE) & 0x1F);
       return false;
     }
 
